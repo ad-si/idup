@@ -1,4 +1,4 @@
-Source: rust-photodedupe
+Source: rust-idup
 Section: utils
 Priority: optional
 Build-Depends: debhelper-compat (= 13),
@@ -20,13 +20,13 @@ Maintainer: Debian Rust Maintainers <pkg-rust-maintainers@alioth-lists.debian.ne
 Uploaders:
  Mikhail Kazantsev <kazan417@gmail.com>
 Standards-Version: 4.7.0
-Vcs-Git: https://salsa.debian.org/rust-team/debcargo-conf.git [src/photodedupe]
-Vcs-Browser: https://salsa.debian.org/rust-team/debcargo-conf/tree/master/src/photodedupe
-Homepage: https://github.com/InexplicableMagic/photodedupe
-X-Cargo-Crate: photodedupe
+Vcs-Git: https://salsa.debian.org/rust-team/debcargo-conf.git [src/idup]
+Vcs-Browser: https://salsa.debian.org/rust-team/debcargo-conf/tree/master/src/idup
+Homepage: https://github.com/ad-si/idup
+X-Cargo-Crate: idup
 Rules-Requires-Root: no
 
-Package: photodedupe
+Package: idup
 Architecture: any
 Depends:
  ${misc:Depends},
@@ -41,7 +41,7 @@ Provides:
 Built-Using: ${cargo:Built-Using}
 Static-Built-Using: ${cargo:Static-Built-Using}
 Description: Utility for identifying duplicate photos
- Photodedupe is a command line utility for identifying duplicate photos
+ Idup is a command line utility for identifying duplicate photos
  regardless of whether the images have been scaled or have different file
  formats. It compares the image content visually and does not rely on metadata
  or file hashes to perform the de-duplication.

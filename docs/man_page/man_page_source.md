@@ -1,17 +1,17 @@
-% photodedupe(1) Version 1.0.2
+% idup(1) Version 1.0.2
 # NAME
-photodedupe - a command line utility for identifying duplicate photos
+idup - a command line utility for identifying duplicate photos
 
 # SYNOPSIS
 
-photodedupe [-d|-u|-a] [DIR]
+idup [-d|-u|-a] [DIR]
 
 # DESCRIPTION
-Photodedupe is a command line utility for identifying duplicate photos regardless of whether the images have been scaled or have differing file formats. It compares the image content visually and does not rely on metadata or file hashes to perform the de-duplication. 
+Idup is a command line utility for identifying duplicate photos regardless of whether the images have been scaled or have differing file formats. It compares the image content visually and does not rely on metadata or file hashes to perform the de-duplication. 
 
 Where duplicates are identified, the images are sorted by resolution such that the largest version of each image appears first. It is possible to list only the highest resolution versions of all images, or alternatively to list only the duplicates (lower resolution versions). This enables the best copies of images to be extracted from a photo collection or the duplicates to be removed. This sort order is helpful for applications such as removing thumbnails from image collections or separating scaled web resolution images from the original high resolution version.
 
-The output is a list of file paths that can be piped to other commands such that the required images can be sorted into folders (example usage below). Photodedupe can work with large image collections of hundreds of thousands or millions of images and scales to any number of CPU cores.
+The output is a list of file paths that can be piped to other commands such that the required images can be sorted into folders (example usage below). Idup can work with large image collections of hundreds of thousands or millions of images and scales to any number of CPU cores.
 
 # OPTIONS
 
@@ -22,7 +22,7 @@ The output is a list of file paths that can be piped to other commands such that
 : List only the best (highest resolution) version of each valid image without listing any duplicates
           
 `-a, --all`
-: By default photodedupe lists only images that have duplicates. This option causes all valid image files to be listed (except those below the minimum resolution if \-\-min-resolution is used) regardless of whether the file has a duplicate
+: By default idup lists only images that have duplicates. This option causes all valid image files to be listed (except those below the minimum resolution if \-\-min-resolution is used) regardless of whether the file has a duplicate
           
 `-c, --compare <directory of new images>` 
 : Compares a directory of new images (supplied as the parameter to \-\-compare) with one or more directories comprising an existing image collection (supplied as arguments). Tests whether each of the new images are duplicates of the existing image collection or unique depending on use of either the \-\-duplicates or \-\-uniques options respectively. When used with \-\-duplicates, new images are classified as unique when of higher resolution than the version in the existing image collection. To mark similar images as duplicates in all circumstances (irrespective of resolution), additionally apply the \-\-ignore-resolution option
@@ -56,25 +56,25 @@ The output is a list of file paths that can be piped to other commands such that
 
 # EXAMPLE USAGE
 
-One or more directories can be supplied on the command line and photodedupe will recursively inspect all of them for images:
+One or more directories can be supplied on the command line and idup will recursively inspect all of them for images:
 
 ```
-photodedupe dir_of_images_1/ dir_of_images_2/ dir_of_images_3/
+idup dir_of_images_1/ dir_of_images_2/ dir_of_images_3/
 ```
 
 A list of specific image files can be supplied as arguments:
 
 ```
-photodedupe image1.jpg image2.jpg image3.jpg
+idup image1.jpg image2.jpg image3.jpg
 ```
 
 Or a list of file paths can be piped in. This method can be used to select only images of a certain format by file extension:
 
 ```
-find dir_of_photos/ -name '*.jpg' | photodedupe
+find dir_of_photos/ -name '*.jpg' | idup
 ```
 
-By default photodedupe will only inspect files with common image filename extensions. JPEG, PNG, TIFF, GIF and WebP images are supported. The extension check also applies when lists of files are piped in on stdin. However, if your images do not have appropriate filename extensions, image file formats can also be auto-detected. To inspect every file regardless of extension (or lack of extension) and determine if each may be an image, use the ```--any-file``` option.
+By default idup will only inspect files with common image filename extensions. JPEG, PNG, TIFF, GIF and WebP images are supported. The extension check also applies when lists of files are piped in on stdin. However, if your images do not have appropriate filename extensions, image file formats can also be auto-detected. To inspect every file regardless of extension (or lack of extension) and determine if each may be an image, use the ```--any-file``` option.
 
 The default output only lists images that have duplicates. The highest resolution version will be listed first as the "best" copy, followed by any lower resolution versions listed as duplicates. If there are no duplicates there will be no output on stdout.
 
@@ -88,20 +88,20 @@ To list every image file found regardless of whether it has a duplicate use the 
 
 To list only the highest resolution version of each image use the ```--uniques``` option. The output will include images that do not have any duplicates. This option could be used to copy the highest resolution version of each image to a different directory. 
 
-In this example photodedupe is outputting a list of filenames of the best versions of each image on stdout. The xargs command reads each filename, substitues it for the two braces and executes the provided command. This then causes each listed file to be copied to the specified directory.
+In this example idup is outputting a list of filenames of the best versions of each image on stdout. The xargs command reads each filename, substitues it for the two braces and executes the provided command. This then causes each listed file to be copied to the specified directory.
 
-```photodedupe --uniques dir_of_photos/ | xargs -i cp "{}" unique_best_versions_dir/```
+```idup --uniques dir_of_photos/ | xargs -i cp "{}" unique_best_versions_dir/```
 
 
 To list only the lower resolution duplicate images, use the ```--duplicates``` option. This option could be used to remove duplicates from a directory e.g:
 
-```photodedupe --duplicates dir_of_photos/ | xargs -i mv "{}" duplicate_photos_dir/```
+```idup --duplicates dir_of_photos/ | xargs -i mv "{}" duplicate_photos_dir/```
 
-Note that photodedupe is performing a fuzzy match and is not 100% accurate. It is not advised to delete duplicates without manual inspection.
+Note that idup is performing a fuzzy match and is not 100% accurate. It is not advised to delete duplicates without manual inspection.
 
 Photos below a user specified resolution can be ignored. In the following example photos will not be inspected that have either a width of less than 150 pixels or a height of less than 100 pixels. This option can be helpful if e.g. a web page of high resolution photos has been downloaded but the directory also includes a variety of other images present on the page that are not required such as navigation button images etc. The button images will tend to be lower resolution than the required photos and so they can be immediately filtered out with this option.
 
-````photodedupe dir_of_photos/ --min-resolution 150x100````
+````idup dir_of_photos/ --min-resolution 150x100````
 
 ## IMAGE DIRECTORY DIFF
 
@@ -111,17 +111,17 @@ To identify which of the new images already exist in your collection pass the di
 
 Supply the ```--uniques``` flag to show which images in new_images_dir are unique with respect the existing collection. You might then move the new images found into your collection.
 
-```photodedupe --uniques --compare new_images_dir/ collection_of_existing_images/```
+```idup --uniques --compare new_images_dir/ collection_of_existing_images/```
 
 Supply the ```--duplicates``` flag to show which images in the new_images_dir are duplicates of the existing collection. If photos in the new images directory already exist in the collection at the same or lower resolution, the new images will be reported as duplicates. If however a photo appears in the new images directory at a higher resolution than present in the collection, it will not be reported as a duplicate. This is to enable better quality versions of existing images to be discovered and added to the collection. This means you may be adding duplicates to the collection, but the duplicates added will be better quality versions of images than the versions you already have. If you do not want this behaviour and you would like duplicates to be reported in all circumstances, even if the new image is higher resolution, additionally supply the ```--ignore-resolution``` flag.
 
-```photodedupe --duplicates --compare new_images_dir/ collection_of_existing_images/```
+```idup --duplicates --compare new_images_dir/ collection_of_existing_images/```
 
 The new images directory passed to ```--compare``` is inspected recursively and sub-directories will also be inspected for images. The same rules apply as for other directories. By default only files with common image file name extensions (such as .jpg) will be inspected unless the ```--any-file``` option is used where all files will be inspected. 
 
 It is also possible to specify a single specific image file to be compared against the entire existing photo collection. This can be used to effectively perform a database query to ask the question as to if you already have this specific image in your collection or not.
 
-```photodedupe --duplicates --compare image.jpg collection_of_existing_images/```
+```idup --duplicates --compare image.jpg collection_of_existing_images/```
 
 When using ```--compare```, any duplicates present in the existing collection are not reported. Only duplicates present in the new images directory are reported. Reporting images found in the collection is just the default behaviour, in which case simply do not use the ```--compare``` option at all and pass the new images directory as a regular argument together with the existing photo collection.
 
@@ -144,13 +144,13 @@ Image\_dupe\_1 is not shown as a duplicate because at 5 megapixels it exceeds th
 
 # PERFORMANCE
 
-Photodedupe uses four threads by default to process images. The number of threads can be increased using the ``--threads`` option. More than the specified number of threads may actually be used due to further multithreading within the underlying libraries.
+Idup uses four threads by default to process images. The number of threads can be increased using the ``--threads`` option. More than the specified number of threads may actually be used due to further multithreading within the underlying libraries.
 
-Up to 50,000 images, all photos found are compared to all others. However after this number of images, the performance of this approach starts to become intractable. Photodedupe will then switch to a different algorithm that is less capable of detecting duplicates but can handle much larger numbers of images. A warning will be printed to stderr to explain when this occurs. It is possible to force use of the all to all comparison variation using the ```--force-colour-diff-only``` flag. However this is not advised for large image sets as the performance will decline significantly. 
+Up to 50,000 images, all photos found are compared to all others. However after this number of images, the performance of this approach starts to become intractable. Idup will then switch to a different algorithm that is less capable of detecting duplicates but can handle much larger numbers of images. A warning will be printed to stderr to explain when this occurs. It is possible to force use of the all to all comparison variation using the ```--force-colour-diff-only``` flag. However this is not advised for large image sets as the performance will decline significantly. 
 
-Photodedupe is not as accurate on vector art or images containing little variance such as very dark photos. Images are tested for variance, where variance is below the threshold where de-duplication is likely to be reliable the images are identified as unique to prevent false positives.
+Idup is not as accurate on vector art or images containing little variance such as very dark photos. Images are tested for variance, where variance is below the threshold where de-duplication is likely to be reliable the images are identified as unique to prevent false positives.
 
-Photodedupe does not detect transformations of images as duplicates. If the image has been significantly rotated or cropped it will be identified as unique.
+Idup does not detect transformations of images as duplicates. If the image has been significantly rotated or cropped it will be identified as unique.
 
 The internal threshold at which a duplicate is detected can be be tuned using the ```--colour-diff-threshold``` option which accepts an integer between 0 and 49000. The default threshold is 256. Setting this value closer to zero will cause fewer duplicates to be found. At values close to 49000 virtually all images will be declared duplicates.
 
@@ -160,7 +160,7 @@ Leon Bubb
 
 # SOURCE
 
-[https://github.com/InexplicableMagic/photodedupe](https://github.com/InexplicableMagic/photodedupe)
+[https://github.com/ad-si/idup](https://github.com/ad-si/idup)
 
 # LICENSE
 

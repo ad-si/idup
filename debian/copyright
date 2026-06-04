@@ -1,13 +1,13 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: photodedupe
+Upstream-Name: idup
 Upstream-Contact:
- LJ Bubb <photodedupe@leoncode.co.uk>
+ LJ Bubb
  Mikhail Kazantsev <kazan417@gmail.com>
-Source: https://github.com/InexplicableMagic/photodedupe
+Source: https://github.com/ad-si/idup
 
 Files: *
 Copyright:
- 2021 - 2026 LJ Bubb <photodedupe@leoncode.co.uk>
+ 2021 - 2026 LJ Bubb
  2025 - 2026 Mikhail Kazantsev <kazan417@gmail.com>
 License: MIT
 

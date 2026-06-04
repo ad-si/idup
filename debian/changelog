@@ -1,6 +1,6 @@
-rust-photodedupe (1.0.6+deb13u1) unstable; urgency=medium
+rust-idup (1.0.6+deb13u1) unstable; urgency=medium
 
-  * Package photodedupe 1.0.6 from crates.io using debcargo 2.7.8
+  * Package idup 1.0.6 from crates.io using debcargo 2.7.8
     - Initial release (Closes: #1064587)
 
  -- Mikhail Kazantsev <kazan417@gmail.com>  Wed, 14 Jan 2026 20:00:02 +0700
