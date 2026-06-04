@@ -456,13 +456,16 @@ fn gather_file_list(
   output_image_paths
 }
 
-/// Filter to ignore invisible files that start with a dot
+/// Filter to ignore invisible files that start with a dot.
+/// The root entry (depth 0) is never filtered, otherwise passing "." or "./"
+/// as the directory would exclude the whole traversal.
 fn dir_filter(entry: &DirEntry) -> bool {
-  entry
-    .file_name()
-    .to_str()
-    .map(|s| s.starts_with("."))
-    .unwrap_or(false)
+  entry.depth() > 0
+    && entry
+      .file_name()
+      .to_str()
+      .map(|s| s.starts_with("."))
+      .unwrap_or(false)
 }
 
 /// Accepts a list of file paths and returns an ordered list of metadata with possible (but not confirmed) duplicates grouped together
