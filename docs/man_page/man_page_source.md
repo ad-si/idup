@@ -4,7 +4,7 @@ idup - a command line utility for identifying duplicate photos
 
 # SYNOPSIS
 
-idup [-d|-u|-a] [DIR]
+idup [duplicates|uniques|all|debug] [OPTIONS] [DIR]
 
 # DESCRIPTION
 Idup is a command line utility for identifying duplicate photos regardless of whether the images have been scaled or have differing file formats. It compares the image content visually and does not rely on metadata or file hashes to perform the de-duplication. 
@@ -13,19 +13,26 @@ Where duplicates are identified, the images are sorted by resolution such that t
 
 The output is a list of file paths that can be piped to other commands such that the required images can be sorted into folders (example usage below). Idup can work with large image collections of hundreds of thousands or millions of images and scales to any number of CPU cores.
 
+# SUBCOMMANDS
+
+When no subcommand is supplied idup prints the default report: the best (highest resolution) version of each image followed by any lower resolution duplicates, plus a summary. The subcommands below select an alternative output mode. Options listed in the OPTIONS section apply to the default report and to the `duplicates`, `uniques` and `all` subcommands.
+
+`duplicates`
+: List only the detected duplicate images. Excludes the highest resolution version of each image. Excludes unique images
+
+`uniques`
+: List only the best (highest resolution) version of each valid image without listing any duplicates
+
+`all`
+: By default idup lists only images that have duplicates. This subcommand causes all valid image files to be listed (except those below the minimum resolution if \-\-min-resolution is used) regardless of whether the file has a duplicate
+
+`debug`
+: Expects either one or two image file arguments. Where one file is supplied, prints statistics about the file. Where two are supplied prints statistics and information about the differences found between the files. Accepts the \-\-min-resolution option
+
 # OPTIONS
 
-`-d, --duplicates`
-: List only the detected duplicate images. Excludes the highest resolution version of each image. Excludes unique images
-          
-`-u, --uniques`
-: List only the best (highest resolution) version of each valid image without listing any duplicates
-          
-`-a, --all`
-: By default idup lists only images that have duplicates. This option causes all valid image files to be listed (except those below the minimum resolution if \-\-min-resolution is used) regardless of whether the file has a duplicate
-          
 `-c, --compare <directory of new images>` 
-: Compares a directory of new images (supplied as the parameter to \-\-compare) with one or more directories comprising an existing image collection (supplied as arguments). Tests whether each of the new images are duplicates of the existing image collection or unique depending on use of either the \-\-duplicates or \-\-uniques options respectively. When used with \-\-duplicates, new images are classified as unique when of higher resolution than the version in the existing image collection. To mark similar images as duplicates in all circumstances (irrespective of resolution), additionally apply the \-\-ignore-resolution option
+: Compares a directory of new images (supplied as the parameter to \-\-compare) with one or more directories comprising an existing image collection (supplied as arguments). Tests whether each of the new images are duplicates of the existing image collection or unique depending on use of either the `duplicates` or `uniques` subcommand respectively. When used with `duplicates`, new images are classified as unique when of higher resolution than the version in the existing image collection. To mark similar images as duplicates in all circumstances (irrespective of resolution), additionally apply the \-\-ignore-resolution option
           
 `--ignore-resolution`
 : When using \-\-compare always mark duplicates even the new image is better quality. Do not mark as unique even if better quality
@@ -44,9 +51,6 @@ The output is a list of file paths that can be piped to other commands such that
           
 `--colour-diff-threshold <threshold>`
 : Colour difference threshold. Higher value means more likely to consider images duplicates (Min:0,Max:49000,Default:256)
-          
-`-g, --debug`
-: Expects either one or two image file arguments. Where one file is supplied, prints statistics about the file. Where two are supplied prints statistics and information about the differences found between the files
           
 `-h, --help`
 : Print help
@@ -84,18 +88,18 @@ Best(512x341): unit_test_images/cat2_best.jpg
 	Duplicate(100x67): unit_test_images/cat2_duplicate_2.png
 ```
 
-To list every image file found regardless of whether it has a duplicate use the ```--all``` option.
+To list every image file found regardless of whether it has a duplicate use the ```all``` subcommand.
 
-To list only the highest resolution version of each image use the ```--uniques``` option. The output will include images that do not have any duplicates. This option could be used to copy the highest resolution version of each image to a different directory. 
+To list only the highest resolution version of each image use the ```uniques``` subcommand. The output will include images that do not have any duplicates. This subcommand could be used to copy the highest resolution version of each image to a different directory. 
 
 In this example idup is outputting a list of filenames of the best versions of each image on stdout. The xargs command reads each filename, substitues it for the two braces and executes the provided command. This then causes each listed file to be copied to the specified directory.
 
-```idup --uniques dir_of_photos/ | xargs -i cp "{}" unique_best_versions_dir/```
+```idup uniques dir_of_photos/ | xargs -i cp "{}" unique_best_versions_dir/```
 
 
-To list only the lower resolution duplicate images, use the ```--duplicates``` option. This option could be used to remove duplicates from a directory e.g:
+To list only the lower resolution duplicate images, use the ```duplicates``` subcommand. This subcommand could be used to remove duplicates from a directory e.g:
 
-```idup --duplicates dir_of_photos/ | xargs -i mv "{}" duplicate_photos_dir/```
+```idup duplicates dir_of_photos/ | xargs -i mv "{}" duplicate_photos_dir/```
 
 Note that idup is performing a fuzzy match and is not 100% accurate. It is not advised to delete duplicates without manual inspection.
 
@@ -109,27 +113,27 @@ The feature enables a directory of new images to be compared against a pre-exist
 
 To identify which of the new images already exist in your collection pass the directory of new images to be tested to the ``--compare`` option, then supply one or more paths to the pre-existing photo collection as arguments. 
 
-Supply the ```--uniques``` flag to show which images in new_images_dir are unique with respect the existing collection. You might then move the new images found into your collection.
+Use the ```uniques``` subcommand to show which images in new_images_dir are unique with respect the existing collection. You might then move the new images found into your collection.
 
-```idup --uniques --compare new_images_dir/ collection_of_existing_images/```
+```idup uniques --compare new_images_dir/ collection_of_existing_images/```
 
-Supply the ```--duplicates``` flag to show which images in the new_images_dir are duplicates of the existing collection. If photos in the new images directory already exist in the collection at the same or lower resolution, the new images will be reported as duplicates. If however a photo appears in the new images directory at a higher resolution than present in the collection, it will not be reported as a duplicate. This is to enable better quality versions of existing images to be discovered and added to the collection. This means you may be adding duplicates to the collection, but the duplicates added will be better quality versions of images than the versions you already have. If you do not want this behaviour and you would like duplicates to be reported in all circumstances, even if the new image is higher resolution, additionally supply the ```--ignore-resolution``` flag.
+Use the ```duplicates``` subcommand to show which images in the new_images_dir are duplicates of the existing collection. If photos in the new images directory already exist in the collection at the same or lower resolution, the new images will be reported as duplicates. If however a photo appears in the new images directory at a higher resolution than present in the collection, it will not be reported as a duplicate. This is to enable better quality versions of existing images to be discovered and added to the collection. This means you may be adding duplicates to the collection, but the duplicates added will be better quality versions of images than the versions you already have. If you do not want this behaviour and you would like duplicates to be reported in all circumstances, even if the new image is higher resolution, additionally supply the ```--ignore-resolution``` flag.
 
-```idup --duplicates --compare new_images_dir/ collection_of_existing_images/```
+```idup duplicates --compare new_images_dir/ collection_of_existing_images/```
 
 The new images directory passed to ```--compare``` is inspected recursively and sub-directories will also be inspected for images. The same rules apply as for other directories. By default only files with common image file name extensions (such as .jpg) will be inspected unless the ```--any-file``` option is used where all files will be inspected. 
 
 It is also possible to specify a single specific image file to be compared against the entire existing photo collection. This can be used to effectively perform a database query to ask the question as to if you already have this specific image in your collection or not.
 
-```idup --duplicates --compare image.jpg collection_of_existing_images/```
+```idup duplicates --compare image.jpg collection_of_existing_images/```
 
 When using ```--compare```, any duplicates present in the existing collection are not reported. Only duplicates present in the new images directory are reported. Reporting images found in the collection is just the default behaviour, in which case simply do not use the ```--compare``` option at all and pass the new images directory as a regular argument together with the existing photo collection.
 
-To determine where specifically the images in the new images directory appear in the existing photo collection use the ```--compare``` option alone (without either the ```--duplicates``` or ```--uniques``` flag). This will show only instances where there is a duplicate of an image in the new images directory. Only the highest resolution version will be shown from the collection (unless the version in the new images directory is the best version).
+To determine where specifically the images in the new images directory appear in the existing photo collection use the ```--compare``` option alone (without any of the ```duplicates```, ```uniques``` or ```all``` subcommands). This will show only instances where there is a duplicate of an image in the new images directory. Only the highest resolution version will be shown from the collection (unless the version in the new images directory is the best version).
 
 ### EXAMPLE BEHAVIOUR OF \-\-compare
 
-In the example below the directory "new_images" is passed to the ```--compare``` option and the ```--duplicates``` flag is used. The collection directory is passed as an argument. All of the images in the below table are visually duplicates of each other:
+In the example below the directory "new_images" is passed to the ```--compare``` option and the ```duplicates``` subcommand is used. The collection directory is passed as an argument. All of the images in the below table are visually duplicates of each other:
 
 |File|Resolution|Shown As Duplicate?|
 |----|----------|------------------|

@@ -15,12 +15,12 @@ extern crate clap;
 extern crate indicatif;
 extern crate walkdir;
 
-use clap::Parser;
+use clap::{Args as ClapArgs, CommandFactory, Parser, Subcommand};
 use indicatif::ProgressBar;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, IsTerminal};
 use std::path::Path;
 use std::sync::mpsc::channel;
 use threadpool::ThreadPool;
@@ -32,20 +32,38 @@ mod imagehash;
 /// Idup: A utility for detecting duplicate photos in a collection of images
 #[derive(Parser, Debug)]
 #[command(version=env!("CARGO_PKG_VERSION"))]
+#[command(args_conflicts_with_subcommands = true)]
+#[command(override_usage = "idup <COMMAND> [Files/Directories]...")]
 struct Args {
+  #[command(subcommand)]
+  command: Option<Command>,
+
+  /// Options for the default mode (list best versions together with their duplicates).
+  #[command(flatten)]
+  shared: SharedArgs,
+}
+
+/// Output modes available as subcommands. When no subcommand is supplied the
+/// default report (best versions plus their duplicates and a summary) is used.
+#[derive(Subcommand, Debug)]
+enum Command {
   /// List only the detected duplicate images. Excludes the highest resolution version of each image. Excludes unique images.
-  #[arg(short, long,  required = false, conflicts_with_all = &["uniques", "all"]) ]
-  duplicates: bool,
+  Duplicates(SharedArgs),
 
   /// List only the best (highest resolution) version of each valid image without listing any duplicates.
-  #[arg(short, long, required = false, conflicts_with_all = &["duplicates", "all"]) ]
-  uniques: bool,
+  Uniques(SharedArgs),
 
-  /// By default idup lists only images that have duplicates. This option causes all valid image files to be listed (except those below the minimum resolution if --min-resolution is used) regardless of whether the file has a duplicate.
-  #[arg(short, long, required = false, conflicts_with_all = &["uniques", "duplicates"]) ]
-  all: bool,
+  /// List all valid image files (except those below --min-resolution) regardless of whether the file has a duplicate.
+  All(SharedArgs),
 
-  /// Compares a directory of new images (supplied as the parameter to --compare) with one or more directories comprising an existing image collection (supplied as arguments). Tests whether each of the new images are duplicates of the existing image collection or unique depending on use of either the --duplicates or --uniques options respectively. When used with --duplicates, new images are classified as unique when of higher resolution than the version in the existing image collection. To mark similar images as duplicates in all circumstances (irrespective of resolution), additionally apply the --ignore-resolution option.
+  /// Print statistics about one or two images. Where one file is supplied, prints statistics about the file. Where two are supplied also prints information about the differences found between the files.
+  Debug(DebugArgs),
+}
+
+/// Options shared by the default mode and the duplicates/uniques/all subcommands.
+#[derive(ClapArgs, Debug, Default)]
+struct SharedArgs {
+  /// Compares a directory of new images (supplied as the parameter to --compare) with one or more directories comprising an existing image collection (supplied as arguments). Tests whether each of the new images are duplicates of the existing image collection or unique depending on whether the `duplicates` or `uniques` subcommand is used. With `duplicates`, new images are classified as unique when of higher resolution than the version in the existing image collection. To mark similar images as duplicates in all circumstances (irrespective of resolution), additionally apply the --ignore-resolution option.
   #[arg(
     short,
     long = "compare",
@@ -96,56 +114,139 @@ struct Args {
   )]
   colour_diff_threshold: Option<u32>,
 
-  /// Expects either one or two image file arguments. Where one file is supplied, prints statistics about the file. Where two are supplied prints statistics and information about the differences found between the files.
-  #[arg(short = 'g', long, required = false, conflicts_with_all = &["uniques", "duplicates", "all", "compare_dir"]) ]
-  debug: bool,
-
   #[arg(name = "Files/Directories", required = false)]
   dir_or_file: Option<Vec<String>>,
 }
 
+/// Options for the `debug` subcommand.
+#[derive(ClapArgs, Debug)]
+struct DebugArgs {
+  /// Ignore all images of less than the specified resolution e.g. --min-resolution 300x200.
+  #[arg(
+    long = "min-resolution",
+    required = false,
+    value_name = "WidthxHeight"
+  )]
+  ignore_low_res: Option<String>,
+
+  /// One or two image files to inspect.
+  #[arg(name = "Files", required = false)]
+  dir_or_file: Option<Vec<String>>,
+}
+
+/// Which images to print. Determined by the subcommand (or default report).
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum OutputMode {
+  /// Default report: best versions printed together with their duplicates plus a summary.
+  Report,
+  /// Only the lower resolution duplicate images.
+  Duplicates,
+  /// Only the best (highest resolution) version of each image.
+  Uniques,
+  /// Every valid image regardless of whether it has a duplicate.
+  All,
+}
+
 fn main() {
   //Process command line arguments
-  let matches = Args::parse();
+  let args = Args::parse();
+
+  //The `debug` subcommand is a separate mode that does not perform de-duplication
+  if let Some(Command::Debug(debug_args)) = &args.command {
+    debug_mode(debug_args);
+    return;
+  }
+
+  //Determine the output mode and the options that apply to it
+  let (shared, output_mode) = match &args.command {
+    Some(Command::Duplicates(s)) => (s, OutputMode::Duplicates),
+    Some(Command::Uniques(s)) => (s, OutputMode::Uniques),
+    Some(Command::All(s)) => (s, OutputMode::All),
+    None => (&args.shared, OutputMode::Report),
+    Some(Command::Debug(_)) => unreachable!("handled above"),
+  };
+
+  //When no paths are supplied on the command line idup reads the list of files
+  //from stdin. If stdin is an interactive terminal there is nothing to read and
+  //it would block forever, so print the usage instructions instead of hanging.
+  if shared.dir_or_file.is_none() && io::stdin().is_terminal() {
+    print_help_and_exit(&args.command);
+  }
 
   //Set the configuration options based on the command line
-  match set_config_options(&matches) {
+  match set_config_options(shared, output_mode) {
     Ok(config) => {
-      if !matches.debug {
-        //Gather the list of files to inspect
-        match collate_file_list_any_source(&matches, &config) {
-          Some(mut dedup_file_list) => {
-            //Add in the images from the comparison directory
-            if config.am_comparing {
-              let path_list: Vec<String> = vec![config.compare_dir.clone()];
-              let compare_flist = gather_file_list(&path_list, &config, true);
-              dedup_file_list.extend(compare_flist);
-            }
-
-            //Calculate an image hash for each image and image statistics
-            let results = run_image_hashing(dedup_file_list, &config);
-
-            if !results.is_empty() {
-              //Write out the list of duplicates per command line options
-              output_results(results, &config);
-            }
+      //Gather the list of files to inspect
+      match collate_file_list_any_source(shared, &config) {
+        Some(mut dedup_file_list) => {
+          //Add in the images from the comparison directory
+          if config.am_comparing {
+            let path_list: Vec<String> = vec![config.compare_dir.clone()];
+            let compare_flist = gather_file_list(&path_list, &config, true);
+            dedup_file_list.extend(compare_flist);
           }
-          None => {
-            eprintln!("Error: Didn't find any image files to test");
+
+          //Calculate an image hash for each image and image statistics
+          let results = run_image_hashing(dedup_file_list, &config);
+
+          if !results.is_empty() {
+            //Write out the list of duplicates per command line options
+            output_results(results, &config);
           }
         }
-      }
-      else {
-        debug_mode(&matches, &config);
+        None => {
+          eprintln!("Error: Didn't find any image files to test");
+        }
       }
     }
     Err(e) => eprintln!("{}", e),
   }
 }
 
+/// Print the usage instructions (for the active subcommand, or the top level if
+/// none was given) and exit. Used when idup is invoked with no input to process.
+fn print_help_and_exit(command: &Option<Command>) -> ! {
+  let mut cmd = Args::command();
+  //Propagate the binary name down to the subcommands so their usage line reads
+  //e.g. "idup duplicates" rather than just "duplicates".
+  cmd.build();
+  let sub_name = match command {
+    Some(Command::Duplicates(_)) => Some("duplicates"),
+    Some(Command::Uniques(_)) => Some("uniques"),
+    Some(Command::All(_)) => Some("all"),
+    Some(Command::Debug(_)) => Some("debug"),
+    None => None,
+  };
+  match sub_name.and_then(|name| cmd.find_subcommand_mut(name)) {
+    Some(sub) => {
+      let _ = sub.print_help();
+    }
+    None => {
+      let _ = cmd.print_help();
+    }
+  }
+  println!();
+  std::process::exit(2);
+}
+
 /// Debug function to print internal statistics for an image. If two images are supplied, also compares them.
-fn debug_mode(matches: &Args, config: &imagehash::ConfigOptions) {
-  match &matches.dir_or_file {
+fn debug_mode(debug_args: &DebugArgs) {
+  let mut config = get_default_config_options();
+  if let Some(ref width_height) = &debug_args.ignore_low_res {
+    match extract_width_and_height(width_height) {
+      Some((width, height)) => {
+        config.min_width = width;
+        config.min_height = height;
+      }
+      None => {
+        eprintln!("Paramater passed to --min-resolution option is incorrectly formatted. Should be widthxheight e.g. 100x100.");
+        return;
+      }
+    }
+  }
+  let config = &config;
+
+  match &debug_args.dir_or_file {
     Some(ref paths) => {
       if paths.is_empty() || paths.len() > 2 {
         eprintln!(
@@ -236,21 +337,22 @@ fn get_default_config_options() -> imagehash::ConfigOptions {
 
 /// Converts configuration options set on the command line with the Clap module into the internal configuration options object
 fn set_config_options(
-  matches: &Args,
+  shared: &SharedArgs,
+  output_mode: OutputMode,
 ) -> Result<imagehash::ConfigOptions, String> {
   let mut config: imagehash::ConfigOptions = get_default_config_options();
 
-  config.only_list_duplicates = matches.duplicates;
-  config.only_list_uniques = matches.uniques;
-  config.list_all = matches.all;
-  config.alg_colour_diff_only = matches.force_colour_diff_only;
-  config.always_mark_duplicates = matches.always_mark_duplicates;
+  config.only_list_duplicates = output_mode == OutputMode::Duplicates;
+  config.only_list_uniques = output_mode == OutputMode::Uniques;
+  config.list_all = output_mode == OutputMode::All;
+  config.alg_colour_diff_only = shared.force_colour_diff_only;
+  config.always_mark_duplicates = shared.always_mark_duplicates;
 
-  if matches.any_file {
+  if shared.any_file {
     config.only_known_file_extensions = false;
   }
 
-  if let Some(num_threads) = matches.num_threads {
+  if let Some(num_threads) = shared.num_threads {
     if num_threads < 1 {
       return Err("Number of threads must be greater than 0".to_string());
     }
@@ -258,7 +360,7 @@ fn set_config_options(
     config.num_threads = num_threads;
   }
 
-  if let Some(colour_diff_threshold) = matches.colour_diff_threshold {
+  if let Some(colour_diff_threshold) = shared.colour_diff_threshold {
     if colour_diff_threshold > 49000 {
       return Err(
         "colour_diff_threshold must be between 0 - 49000 inclusive."
@@ -269,7 +371,7 @@ fn set_config_options(
   }
 
   //If the string is missing it should be caught by clap
-  if let Some(ref c_dir) = &matches.compare_dir {
+  if let Some(ref c_dir) = &shared.compare_dir {
     let dir_test = Path::new(&c_dir);
     if dir_test.is_dir() || dir_test.is_file() {
       config.compare_dir = c_dir.to_string();
@@ -284,7 +386,7 @@ fn set_config_options(
   }
 
   //If the string is missing it should be caught by clap
-  if let Some(ref width_height) = &matches.ignore_low_res {
+  if let Some(ref width_height) = &shared.ignore_low_res {
     if let Some((width, height)) = extract_width_and_height(width_height) {
       if width < 16 || height < 16 {
         return Err("Images with width or height of less than 16 pixels are always ignored.".to_string());
@@ -316,10 +418,10 @@ fn extract_width_and_height(s: &str) -> Option<(u32, u32)> {
 
 /// Determines a list of image file paths that the utility is going to compare
 fn collate_file_list_any_source(
-  matches: &Args,
+  shared: &SharedArgs,
   config: &imagehash::ConfigOptions,
 ) -> Option<Vec<imagehash::ImagePath>> {
-  match gather_file_list_from_cmd_line(matches) {
+  match gather_file_list_from_cmd_line(shared) {
     Some(st_files) => Some(gather_file_list(&st_files, config, false)),
     None => {
       let st_files = gather_file_list_from_stdin()?;
@@ -357,10 +459,10 @@ fn gather_file_list_from_stdin() -> Option<Vec<String>> {
 }
 
 /// Read the command line arguments and generate a complete list of files to be traversed
-fn gather_file_list_from_cmd_line(matches: &Args) -> Option<Vec<String>> {
+fn gather_file_list_from_cmd_line(shared: &SharedArgs) -> Option<Vec<String>> {
   let mut path_list: Vec<String> = Vec::new();
 
-  match &matches.dir_or_file {
+  match &shared.dir_or_file {
     Some(ref paths) => {
       for file_or_dir in paths {
         path_list.push(file_or_dir.to_string());
