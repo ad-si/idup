@@ -390,23 +390,19 @@ impl ImageHashAV {
         let average: f32 = (total as f32) / (num_pixels as f32);
 
         let mut hash_val: u64 = 0;
-        let mut this_bit: u64 = 0;
 
-        for pixel in gs.pixels() {
+        for (this_bit, pixel) in (0_u64..).zip(gs.pixels()) {
           let p: f32 = ((pixel.2).0)[0].into();
           if p >= average {
             hash_val |= 1_u64 << this_bit;
           }
-          this_bit += 1;
         }
 
         //Add the pixels of the low res original image into the struct
-        let mut pnum: usize = 0;
-        for pixel in scaled.pixels() {
+        for (pnum, pixel) in scaled.pixels().enumerate() {
           self.low_res[pnum * 3] = (pixel.2)[0];
           self.low_res[(pnum * 3) + 1] = (pixel.2)[1];
           self.low_res[(pnum * 3) + 2] = (pixel.2)[2];
-          pnum += 1;
         }
 
         self.dupe_group = hash_val;
@@ -434,7 +430,7 @@ mod tests {
         bits_similar += 1;
       }
     }
-    return bits_similar;
+    bits_similar
   }
 
   /// Test an image is read and metadata extracted correctly

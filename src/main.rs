@@ -1,15 +1,15 @@
-//!	# Idup
+//!    # Idup
 //!
-//!	Idup is a utility for identifying duplicate photos regardless of file name, image resolution, compression settings or file format.
-//!	It compares the image content visually and does not rely on any metadata to perform the de-duplication.
+//!    Idup is a utility for identifying duplicate photos regardless of file name, image resolution, compression settings or file format.
+//!    It compares the image content visually and does not rely on any metadata to perform the de-duplication.
 //!
-//!	`Usage`: idup \<dir of images\>
+//!    `Usage`: idup \<dir of images\>
 //!
-//!	`Source`: [GitHub: InexplicableMagic/idup](https://github.com/ad-si/idup)
+//!    `Source`: [GitHub: InexplicableMagic/idup](https://github.com/ad-si/idup)
 //!
-//!	`License`: [MIT](https://mit-license.org/)
+//!    `License`: [MIT](https://mit-license.org/)
 //!
-//!	`Author` : LJ Bubb
+//!    `Author` : LJ Bubb
 
 extern crate clap;
 extern crate indicatif;
@@ -117,8 +117,7 @@ fn main() {
           Some(mut dedup_file_list) => {
             //Add in the images from the comparison directory
             if config.am_comparing {
-              let mut path_list: Vec<String> = Vec::new();
-              path_list.push(config.compare_dir.clone());
+              let path_list: Vec<String> = vec![config.compare_dir.clone()];
               let compare_flist = gather_file_list(&path_list, &config, true);
               dedup_file_list.extend(compare_flist);
             }
@@ -269,37 +268,33 @@ fn set_config_options(
     config.colour_difference_threshold = colour_diff_threshold as u64;
   }
 
-  match &matches.compare_dir {
-    Some(ref c_dir) => {
-      let dir_test = Path::new(&c_dir);
-      if dir_test.is_dir() || dir_test.is_file() {
-        config.compare_dir = c_dir.to_string();
-        config.am_comparing = true;
-      }
-      else {
-        return Err(format!(
-          "Option to --compare \"{}\" is not a valid directory or file.",
-          c_dir
-        ));
-      }
+  //If the string is missing it should be caught by clap
+  if let Some(ref c_dir) = &matches.compare_dir {
+    let dir_test = Path::new(&c_dir);
+    if dir_test.is_dir() || dir_test.is_file() {
+      config.compare_dir = c_dir.to_string();
+      config.am_comparing = true;
     }
-    None => {} //If the string is missing it should be caught by clap
+    else {
+      return Err(format!(
+        "Option to --compare \"{}\" is not a valid directory or file.",
+        c_dir
+      ));
+    }
   }
 
-  match &matches.ignore_low_res {
-    Some(ref width_height) => {
-      if let Some((width, height)) = extract_width_and_height(width_height) {
-        if width < 16 || height < 16 {
-          return Err("Images with width or height of less than 16 pixels are always ignored.".to_string());
-        }
-        config.min_width = width;
-        config.min_height = height;
+  //If the string is missing it should be caught by clap
+  if let Some(ref width_height) = &matches.ignore_low_res {
+    if let Some((width, height)) = extract_width_and_height(width_height) {
+      if width < 16 || height < 16 {
+        return Err("Images with width or height of less than 16 pixels are always ignored.".to_string());
       }
-      else {
-        return Err("Paramater passed to --min-resolution option is incorrectly formatted. Should be widthxheight e.g. 100x100.".to_string());
-      }
+      config.min_width = width;
+      config.min_height = height;
     }
-    None => {} //If the string is missing it should be caught by clap
+    else {
+      return Err("Paramater passed to --min-resolution option is incorrectly formatted. Should be widthxheight e.g. 100x100.".to_string());
+    }
   }
 
   Ok(config)
@@ -565,14 +560,13 @@ fn run_image_hashing(
 ///
 /// I perceived this was faster than testing all images against all images as n*64 < n^2 where n > 64
 /// However on smaller image sets, less than about 50,000 images doing an n^2 colour check is fast enough
-
 fn hamming_check(
-  image_hash_results: &mut Vec<imagehash::ImageHashAV>,
+  image_hash_results: &mut [imagehash::ImageHashAV],
   config: &imagehash::ConfigOptions,
 ) {
   let mut all_hash_codes = HashMap::new();
 
-  image_hash_results.sort_by(|a, b| b.num_pixels.cmp(&a.num_pixels));
+  image_hash_results.sort_by_key(|b| std::cmp::Reverse(b.num_pixels));
 
   for imagehasher in image_hash_results.iter_mut() {
     if all_hash_codes.is_empty() {
@@ -615,13 +609,12 @@ fn hamming_check(
 }
 
 /// Determine if images might be duplicates by using an n^2 scaling method (compares every image against every other)
-
 fn colour_n_square_check(
-  image_hash_results: &mut Vec<imagehash::ImageHashAV>,
+  image_hash_results: &mut [imagehash::ImageHashAV],
   config: &imagehash::ConfigOptions,
 ) {
-  for i in 0..image_hash_results.len() {
-    image_hash_results[i].dupe_group = 0;
+  for item in image_hash_results.iter_mut() {
+    item.dupe_group = 0;
   }
 
   let mut dgroup: u64 = 1;
@@ -947,16 +940,16 @@ mod tests {
       t2_images[0].dupe_group, t2_images[2].dupe_group,
       "Images have same dupe group"
     );
-    assert_eq!(
-      t2_images[0].image_path.is_compare_dir, false,
+    assert!(
+      !t2_images[0].image_path.is_compare_dir,
       "The 1st image is not in the compare directory"
     );
-    assert_eq!(
-      t2_images[1].image_path.is_compare_dir, false,
+    assert!(
+      !t2_images[1].image_path.is_compare_dir,
       "The 2nd image is not in the compare directory"
     );
-    assert_eq!(
-      t2_images[2].image_path.is_compare_dir, true,
+    assert!(
+      t2_images[2].image_path.is_compare_dir,
       "The image in the compare directory is last in the sort group"
     );
   }
