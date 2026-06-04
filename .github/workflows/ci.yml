@@ -24,7 +24,7 @@ jobs:
       - name: Check formatting
         run: |
           make format
-          git diff --exit-status
+          git diff --quiet || { git --no-pager diff; exit 1; }
 
       - name: Clippy
         run: cargo clippy -- -D warnings
@@ -58,7 +58,7 @@ jobs:
           mv ../*.buildinfo build/
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: deb-package
           path: |
