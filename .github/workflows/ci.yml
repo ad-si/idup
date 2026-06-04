@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Test
+        run: cargo test -- --show-output
+
+  build-deb-package:
+    name: Build Debian package
+    runs-on: ubuntu-latest
+    container: debian:stable
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y build-essential devscripts gnupg
+          apt-get build-dep -y .
+
+      - name: Build package
+        # -us: do not sign the source package
+        # -uc: do not sign the changes file
+        run: dpkg-buildpackage -us -uc
+
+      - name: Collect artifacts
+        run: |
+          mkdir build
+          mv ../*.deb build/
+          mv ../*.changes build/
+          mv ../*.buildinfo build/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-package
+          path: |
+            build/*.deb
+            build/*.changes
+            build/*.buildinfo
+          retention-days: 7
